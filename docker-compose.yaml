@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  worker:
+    container_name: worker
+    restart: always
+    volumes:
+      - .:/app
+    build:
+      context: .
+      dockerfile: cmd/worker/DockerfileDev
+    ports:
+      - '5002:5002'
+    networks:
+      - bubble
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.0.32
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '3306:3306'
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    networks:
+      - bubble
+
+  scheduler:
+    container_name: scheduler
+    restart: always
+    volumes:
+      - .:/app
+    build:
+      context: .
+      dockerfile: cmd/scheduler/DockerfileDev
+    ports:
+      - '5001:5001'
+    networks:
+      - bubble
+    depends_on:
+      - mysql
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - '2181:2181'
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - bubble
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - '9092:9092'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - bubble
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui
+    ports:
+      - 8099:8080
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    networks:
+      - bubble
+
+volumes:
+  mysql_data:
+  kafka:
+
+networks:
+  bubble:
+    external: true
